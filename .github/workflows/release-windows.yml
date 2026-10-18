@@ -1,14 +1,15 @@
 name: Build and publish 2Dlock for Windows
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag of the existing release to build and attach assets to (for example v2.9.0)'
-        required: true
-        default: 'v2.9.0'
+        description: 'Existing release tag to rebuild (for example v3.0.0). Leave empty to publish the current package.json version.'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -18,14 +19,13 @@ jobs:
   windows-release:
     runs-on: windows-latest
     env:
-      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
       UPDATE_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Checkout the exact release source
+      - name: Checkout the requested source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ github.event.inputs.tag || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,21 +38,44 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Verify release tag and existing GitHub release
+      - name: Resolve release version and create release when needed
+        id: resolve_release
         shell: pwsh
+        env:
+          RELEASE_TAG_INPUT: ${{ github.event.inputs.tag }}
         run: |
           $package = Get-Content package.json -Raw | ConvertFrom-Json
           $expectedTag = "v$($package.version)"
-          if ($env:RELEASE_TAG -ne $expectedTag) {
-            throw "Il tag '$env:RELEASE_TAG' non corrisponde alla versione package.json '$expectedTag'."
+          $releaseTag = $env:RELEASE_TAG_INPUT
+          if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+            $releaseTag = $expectedTag
           }
-          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw "La release '$env:RELEASE_TAG' non esiste o non è accessibile. Pubblica prima la release su GitHub."
+          if ($releaseTag -ne $expectedTag) {
+            throw "Il tag '$releaseTag' non corrisponde alla versione package.json '$expectedTag'."
           }
-          Write-Host "Release verificata: $env:RELEASE_TAG"
 
-      - name: Build installer locally (do not rely on electron-builder publishing)
+          gh release view $releaseTag --repo $env:GITHUB_REPOSITORY *> $null
+          $releaseExists = ($LASTEXITCODE -eq 0)
+          if (-not $releaseExists) {
+            $targetCommit = $env:GITHUB_SHA
+            if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_TAG_INPUT)) {
+              $targetCommit = $env:RELEASE_TAG_INPUT
+            }
+            gh release create $releaseTag --title "2Dlock $releaseTag" --notes "Release automatica di 2Dlock." --target $targetCommit --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) {
+              throw "Impossibile creare la release GitHub '$releaseTag'."
+            }
+            Write-Host "Creata la release $releaseTag."
+          } elseif ($env:GITHUB_EVENT_NAME -eq "push" -or [string]::IsNullOrWhiteSpace($env:RELEASE_TAG_INPUT)) {
+            throw "La release '$releaseTag' esiste già. Incrementa version in package.json e package-lock.json prima di pubblicare un altro aggiornamento."
+          } else {
+            Write-Host "Release esistente verificata: $releaseTag"
+          }
+
+          Add-Content -Path $env:GITHUB_ENV -Value "RELEASE_TAG=$releaseTag" -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=$releaseTag" -Encoding utf8
+
+      - name: Build Windows installer
         shell: pwsh
         run: |
           if (Test-Path dist) { Remove-Item dist -Recurse -Force }
@@ -101,7 +124,7 @@ jobs:
       - name: Save installer as a downloadable Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 2Dlock-Windows-${{ env.RELEASE_TAG }}
+          name: 2Dlock-Windows-${{ steps.resolve_release.outputs.tag }}
           path: |
             dist/*.exe
             dist/*.blockmap
@@ -109,7 +132,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Explicitly upload installer and updater files to GitHub Release
+      - name: Upload installer and updater files to GitHub Release
         shell: pwsh
         run: |
           $assets = @(Get-ChildItem -Path dist -File | Where-Object {
@@ -126,6 +149,6 @@ jobs:
           $assets | ForEach-Object { Write-Host " - $($_.Name) ($($_.Length) bytes)" }
           gh @ghArgs
           if ($LASTEXITCODE -ne 0) {
-            throw 'GitHub CLI non è riuscito a caricare gli asset sulla release. Controlla i permessi contents: write.'
+            throw 'GitHub CLI non è riuscito a caricare gli asset. Controlla i permessi contents: write.'
           }
           Write-Host 'Installer e manifest caricati correttamente.'
