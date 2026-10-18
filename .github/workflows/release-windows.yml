@@ -4,6 +4,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag of the existing release to build and attach assets to (for example v2.9.0)'
+        required: true
+        default: 'v2.9.0'
+        type: string
 
 permissions:
   contents: write
@@ -11,20 +17,115 @@ permissions:
 jobs:
   windows-release:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      UPDATE_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Checkout source
+      - name: Checkout the exact release source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
+
       - name: Check JavaScript syntax
         run: npm run check
-      - name: Build and publish Windows installer + updater metadata
-        run: npm run release:win
+
+      - name: Verify release tag and existing GitHub release
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $expectedTag = "v$($package.version)"
+          if ($env:RELEASE_TAG -ne $expectedTag) {
+            throw "Il tag '$env:RELEASE_TAG' non corrisponde alla versione package.json '$expectedTag'."
+          }
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw "La release '$env:RELEASE_TAG' non esiste o non è accessibile. Pubblica prima la release su GitHub."
+          }
+          Write-Host "Release verificata: $env:RELEASE_TAG"
+
+      - name: Build installer locally (do not rely on electron-builder publishing)
+        shell: pwsh
+        run: |
+          if (Test-Path dist) { Remove-Item dist -Recurse -Force }
+          npx electron-builder --config electron-builder.config.cjs --win nsis --publish never
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPDATE_REPO: ${{ github.repository }}
+
+      - name: Verify installer and generate updater manifest
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $installer = Get-ChildItem -Path dist -File -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch 'uninstall' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            Write-Host 'Contenuto della cartella dist:'
+            if (Test-Path dist) { Get-ChildItem dist -Recurse | Format-Table FullName, Length }
+            throw 'La build è terminata senza produrre alcun installer .exe. Non pubblico una release vuota.'
+          }
+
+          $shaAlgorithm = [System.Security.Cryptography.SHA512]::Create()
+          $stream = [System.IO.File]::OpenRead($installer.FullName)
+          try { $digest = $shaAlgorithm.ComputeHash($stream) }
+          finally { $stream.Dispose(); $shaAlgorithm.Dispose() }
+          $sha512 = [Convert]::ToBase64String($digest)
+          $releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+          $manifest = @"
+          version: $($package.version)
+          files:
+            - url: $($installer.Name)
+              sha512: $sha512
+              size: $($installer.Length)
+          path: $($installer.Name)
+          sha512: $sha512
+          releaseDate: "$releaseDate"
+          "@
+          $manifestPath = Join-Path (Resolve-Path dist) 'latest.yml'
+          [System.IO.File]::WriteAllText($manifestPath, ($manifest.Trim() + "`n"), [System.Text.UTF8Encoding]::new($false))
+
+          Write-Host 'File generati:'
+          Get-ChildItem -Path dist -File | Format-Table Name, Length
+          if (-not (Test-Path $manifestPath)) { throw 'latest.yml non è stato creato.' }
+
+      - name: Save installer as a downloadable Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2Dlock-Windows-${{ env.RELEASE_TAG }}
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Explicitly upload installer and updater files to GitHub Release
+        shell: pwsh
+        run: |
+          $assets = @(Get-ChildItem -Path dist -File | Where-Object {
+            $_.Extension -eq '.exe' -or $_.Name -like '*.blockmap' -or $_.Name -eq 'latest.yml'
+          })
+          if (-not ($assets | Where-Object { $_.Extension -eq '.exe' })) {
+            throw 'Non trovo il file .exe da caricare.'
+          }
+          if (-not ($assets | Where-Object { $_.Name -eq 'latest.yml' })) {
+            throw 'Non trovo latest.yml da caricare.'
+          }
+          $ghArgs = @('release', 'upload', $env:RELEASE_TAG) + @($assets | ForEach-Object { $_.FullName }) + @('--clobber', '--repo', $env:GITHUB_REPOSITORY)
+          Write-Host "Caricamento asset sulla release $env:RELEASE_TAG :"
+          $assets | ForEach-Object { Write-Host " - $($_.Name) ($($_.Length) bytes)" }
+          gh @ghArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GitHub CLI non è riuscito a caricare gli asset sulla release. Controlla i permessi contents: write.'
+          }
+          Write-Host 'Installer e manifest caricati correttamente.'
