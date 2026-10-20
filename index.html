@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
 AI MAINTENANCE CONTRACT — READ BEFORE EDITING THIS GAME
-- This is 2Dlock V7.0 TEST, based on V6.9 TEST. Kaiser Path now steers live by the mouse cursor instead of automatically moving toward the opponent goal; it does not home in on the goalkeeper and uses local keeper avoidance when approaching too closely. The player is protected by action I-frames throughout the 48-frame Path and for 60 additional frames (1 second) after the dash ends.
+- This is 2Dlock V7.1 TEST, based on V7.0 TEST. Fixes the Electron update notification by explicitly loading desktop-updater-ui.js after the game script; the desktop updater can now render the NUOVA VERSIONE panel when its main process reports an available release. Preserves Kaiser Path cursor steering and immunity, compact ability rail, rarity pools, dedicated reveals, all gameplay, VFX, hitboxes, and the 60 Hz loop.
+- V7.0 TEST: Kaiser Path direction follows the cursor during the move; non-targeted goalkeeper-seeking behavior is removed, and the path curves around an opponent keeper's immediate safety radius. Grants 108 frames of possession-steal/stun immunity at activation: 48 frames for the dash plus 60 frames (1 second) post-move, preserving the existing 48-frame duration, cooldown, rose VFX, physics, and 60 Hz loop.
 - V7.0 TEST: Kaiser Path direction follows the cursor during the move; non-targeted goalkeeper-seeking behavior is removed, and the path curves around an opponent keeper's immediate safety radius. Grants 108 frames of possession-steal/stun immunity at activation: 48 frames for the dash plus 60 frames (1 second) post-move, preserving the existing 48-frame duration, cooldown, rose VFX, physics, and 60 Hz loop.
 - V6.9 TEST: Kaiser Path dash duration reduced from 84 to 48 frames (about 43% shorter / 1.75× faster); dribble timer follows the dash duration. Petal emissions are more frequent so the faster movement retains a continuous rose trail. No change to the path endpoints, ability cooldown, or other styles.
 - V6.7 TEST: compacts the dedicated ability rail from 420px to 160px and snaps it to the pitch edge. Uses abbreviated labels, icon states, compact key badges and segmented progress bars; the rail uses the full vertical lane without covering the field. No change to gameplay, physics, character VFX, hitboxes, rarity pools or the 60 Hz loop.
@@ -29,13 +30,13 @@ AI MAINTENANCE CONTRACT — READ BEFORE EDITING THIS GAME
 <!-- V4.6 TEST: adds Pyro Striker, Tidal Playmaker, and Terra Sentinel Common styles with C/X skills and AWK ultimates. -->
 <head>
 <!-- V4.7 TEST: adds three matching Common Flows, complete C/X/V HUD entries, Ocean Network wave-pass VFX, Terra Tectonic Shift, and i-frame-safe steal skills. -->
-    <meta name="application-name" content="2Dlock V7.0 TEST - Kaiser Path Cursor Steering & Immunity">
+    <meta name="application-name" content="2Dlock V7.1 TEST - Auto-Update Notification Fix">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Teko:wght@500;700&family=Rajdhani:wght@600;700;800&display=swap">
-    <title>2Dlock V7.0 TEST — Kaiser Path Cursor Steering & Immunity</title>
+    <title>2Dlock V7.1 TEST — Auto-Update Notification Fix</title>
     <style>/* =========================================================
    V6.8 TEST — KAISER VFX RESTORATION (HUD/RARITY/QOL PRESERVED)
    Interface chrome only. Match VFX, physics and gameplay untouched.
@@ -996,8 +997,8 @@ const EGOIST_MASTERY_MISSIONS = [
 function loadEgoistMastery() {
     const saved = readJSON(`egoist_mastery_${loggedUser || 'guest'}`, {});
     const state = { unlocked: saved.unlocked === true };
-    EGOIST_MASTERY_MISSIONS.forEach(m => {
-        const n = Number(saved[m.id]);        state[m.id] = Number.isFinite(n) && n > 0 ? Math.min(m.goal, Math.floor(n)) : 0;
+    EGOIST_MASTERY_MISSIONS.forEach(m => {        const n = Number(saved[m.id]);
+        state[m.id] = Number.isFinite(n) && n > 0 ? Math.min(m.goal, Math.floor(n)) : 0;
     });
     if (EGOIST_MASTERY_MISSIONS.every(m => state[m.id] >= m.goal)) state.unlocked = true;
     return state;
@@ -2994,8 +2995,8 @@ function startDestroyerPredatorShot() {
         phase: 'eye', t: 0, startX: player.x, startY: player.y, dir, team: player.team,
         shotStartX: player.x + dir * (player.radius + 8), shotStartY: player.y - 4,
         goalX, goalY, saved: Math.random() < .5, trail: []
-    };
-    ball.owner = null; ball.isPassingToPlayer = false; ball.vx = ball.vy = 0;    ball.x = destroyerAwakeningShot.shotStartX; ball.y = destroyerAwakeningShot.shotStartY; ball.pickupCooldown = 999;
+    };    ball.owner = null; ball.isPassingToPlayer = false; ball.vx = ball.vy = 0;
+    ball.x = destroyerAwakeningShot.shotStartX; ball.y = destroyerAwakeningShot.shotStartY; ball.pickupCooldown = 999;
     player.vx = player.vy = 0;
     clearSpecialShot(); activateSpecialShot(player.team, 'destroyerPredator');
     registerShot(player.team, true, player, 'destroyerPredator');
@@ -3993,8 +3994,8 @@ function startNewgenHeelFlick() {
 }
 
 function updateNewgenHeelDash() {
-    const a = newgenHeelDash;
-    if (!a || gameState !== 'playing') { newgenHeelDash = null; if (ball.pickupCooldown === 999) ball.pickupCooldown = 0; return; }    a.t++;
+    const a = newgenHeelDash;    if (!a || gameState !== 'playing') { newgenHeelDash = null; if (ball.pickupCooldown === 999) ball.pickupCooldown = 0; return; }
+    a.t++;
     const k = Math.min(1, a.t / a.total);
     const eased = 1 - Math.pow(1 - k, 2.4);
     const oldX = player.x, oldY = player.y;
@@ -4992,8 +4993,8 @@ function drawNewgenSignatureAura() {
         ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(spin * (ring % 2 ? -1 : 1) + ring * 0.68);
         ctx.strokeStyle = palette[(ring + (awakened ? 1 : 0)) % palette.length]; ctx.lineWidth = ring === 2 ? 1.4 : 2;
         ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0.18 + ring * 0.7, Math.PI * (1.5 + ring * 0.1)); ctx.stroke();
-        ctx.restore();
-    }    const digitPoints = [];
+        ctx.restore();    }
+    const digitPoints = [];
     for (let i = 0; i < fib.length; i++) {
         const angle = spin * 2 + i * 2.399963 + Math.sin(pantherAnimFrame * 0.04 + i) * 0.08;
         const radius = 31 + (i % 4) * 8 + pulse * 3;
@@ -5991,8 +5992,8 @@ function spawnLuckPuzzle() {
 // VFX: particelle additive con alone, aura per stile, scia della palla
 function drawParticles() {
     if (!gameSettings.particlesEnabled) return;
-    ctx.save();
-    particles.forEach(p => {        if (p.isText) { ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.fillStyle = p.color; ctx.font = '700 15px "Rajdhani", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif'; ctx.fillText(p.text, p.x, p.y); return; }
+    ctx.save();    particles.forEach(p => {
+        if (p.isText) { ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.fillStyle = p.color; ctx.font = '700 15px "Rajdhani", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif'; ctx.fillText(p.text, p.x, p.y); return; }
         const al = Math.min(1, p.life / (p.isPetal ? 30 : 14));
         if (p.isDestroyerEye) {
             ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = al; ctx.translate(p.x, p.y); ctx.rotate(p.rotation || 0);
@@ -6990,8 +6991,8 @@ function adminAddSpins() {
     userStyleSpins += 10;
     userFlowSpins += 10;
     userLuckyStyleSpins += 3;
-    userLuckyFlowSpins += 3;
-    updateSpinsDisplay();    showNotification("+10 Spin normali e +3 Lucky aggiunti!");
+    userLuckyFlowSpins += 3;    updateSpinsDisplay();
+    showNotification("+10 Spin normali e +3 Lucky aggiunti!");
 }
 function adminToggleFreeStyles() {
     adminFreeStylesEnabled = !adminFreeStylesEnabled;
@@ -7989,8 +7990,8 @@ function beginMatchAtStadium(stadiumId) {
     aikuMasteryMatchRecorded = false;
     realKingMasteryMatchRecorded = false;
     matchTimeFrames = gameSettings.matchDuration * 60 * 60;
-    gameState = 'playing';
-    resetField();    resetMatchStats();
+    gameState = 'playing';    resetField();
+    resetMatchStats();
     playUiSound('start');
 }
 function confirmStadiumVote() {
@@ -8988,8 +8989,8 @@ function startBlazeRush() {
         return false;
     }
     const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-    const awakened = elementalAwakeningIsReady();
-    player.dashDirX = Math.cos(angle);    player.dashDirY = Math.sin(angle);
+    const awakened = elementalAwakeningIsReady();    player.dashDirX = Math.cos(angle);
+    player.dashDirY = Math.sin(angle);
     player.isDashing = true;
     player.dashTimer = awakened ? 34 : 24;
     grantActionIFrames(player, awakened ? 12 : 8, 'blaze-rush');
@@ -9987,8 +9988,8 @@ function update() {
             ball.x = perfectPassAnim.target.x;
             ball.y = perfectPassAnim.target.y;
             ball.owner = perfectPassAnim.target;
-            grantActionIFrames(perfectPassAnim.target, 60, 'perfect-pass-reception');
-            perfectPassAnim.target.recvT = Math.max(perfectPassAnim.target.recvT || 0, 24);            const passShieldFrames = grantPerfectPassShield(perfectPassAnim.target, perfectPassAnim.shieldBonusFrames || 0);
+            grantActionIFrames(perfectPassAnim.target, 60, 'perfect-pass-reception');            perfectPassAnim.target.recvT = Math.max(perfectPassAnim.target.recvT || 0, 24);
+            const passShieldFrames = grantPerfectPassShield(perfectPassAnim.target, perfectPassAnim.shieldBonusFrames || 0);
             addMatchStat(perfectPassAnim.passer || player, 'passes');
             lastMatchPasser = perfectPassAnim.passer || player; lastMatchReceiver = perfectPassAnim.target; lastMatchPassTimer = 300;
             awardPlayerXP(8, 'Perfect Pass completato');
@@ -10986,8 +10987,8 @@ function drawAikuWorldFx() {
 
         // Red glowing scale marks along the moving body.
         ctx.globalAlpha = .9;
-        for (let i = 1; i <= 18; i++) {
-            const u = i / 20;            const bx = sx + dx * u + nx * Math.sin(u * Math.PI * 2.2 + pantherAnimFrame * .12) * sway * .55;
+        for (let i = 1; i <= 18; i++) {            const u = i / 20;
+            const bx = sx + dx * u + nx * Math.sin(u * Math.PI * 2.2 + pantherAnimFrame * .12) * sway * .55;
             const by = sy + dy * u + ny * Math.sin(u * Math.PI * 2.2 + pantherAnimFrame * .12) * sway * .55;
             const ang = Math.atan2(dy, dx) + (i % 2 ? .5 : -.5);
             ctx.strokeStyle = i % 3 ? '#FF6475' : '#FFDDE1'; ctx.lineWidth = 2;
@@ -11985,8 +11986,8 @@ function drawGachaFlowPlayerPreview(cx, cy, item = {}) {
         predator: ['#03050B', '#143A83', '#2878FF', '#68E4FF'],
         notDead: ['#03070D', '#1056A7', '#35D9FF', '#8BEFFF'],
         demonFlow: ['#07040D', '#791A57', '#FF4AB8', '#FF9FCB'],
-        snakeFlow: ['#070716', '#421A84', '#9862FF', '#D8C4FF'],
-        luckSecret: ['#09100A', '#8B6A0B', '#FFD700', '#FFF1A6'],        emperor: ['#100C04', '#8B5B12', '#FFD54A', '#FFF1A6'],
+        snakeFlow: ['#070716', '#421A84', '#9862FF', '#D8C4FF'],        luckSecret: ['#09100A', '#8B6A0B', '#FFD700', '#FFF1A6'],
+        emperor: ['#100C04', '#8B5B12', '#FFD54A', '#FFF1A6'],
         prodigy: ['#10051A', '#8A27AE', '#E040FB', '#FFB6FF'],
         lion: ['#190411', '#B51F54', '#FF4F91', '#FFD45A'],
         flow44: ['#160515', '#8D1A61', '#FF3399', '#FFC4EC'],
@@ -12896,7 +12897,7 @@ function drawMain() {
         ctx.restore(); drawStadium(); drawPitchDesign();
         ctx.fillStyle = 'rgba(3,5,16,.965)'; ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.textAlign = 'center'; ctx.fillStyle = '#35F6FF'; ctx.font = '700 15px "Rajdhani", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
-        ctx.fillText('EGOIST SYSTEM • V6.7 TEST • COMPACT LEFT ABILITY RAIL', canvas.width / 2, 48);
+        ctx.fillText('EGOIST SYSTEM • V7.1 TEST • AUTO-UPDATE NOTIFICATION FIX', canvas.width / 2, 48);
         ctx.fillStyle = '#FFFFFF'; ctx.font = '700 43px "Teko", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
         ctx.fillText('CHANGELOG • AGGIORNAMENTI', canvas.width/2, 91);
         const markAllHot = mouseX >= 835 && mouseX <= 1135 && mouseY >= 122 && mouseY <= 160;
@@ -12911,6 +12912,8 @@ function drawMain() {
         let cursorY = viewport.y + 12 - changelogScroll;
         let totalContentHeight = 12;
         const changes = [
+            ['2Dlock V7.1 TEST • AUTO-UPDATE NOTIFICATION FIX',
+             'Corretto il pannello degli aggiornamenti Electron: la build includeva desktop-updater-ui.js tra i file distribuiti, ma index.html non lo caricava, quindi lo stato disponibile inviato dall’auto-updater non poteva diventare il popup NUOVA VERSIONE. Ora lo script viene caricato dopo il gioco e può mostrare la versione disponibile, scaricare l’update e offrire INSTALLA E RIAVVIA. Il feed v3.0.1 esiste già; le vecchie build che non caricavano questo pannello non possono mostrare retroattivamente la notifica: per attivare il popup bisogna installare una volta questa build corretta. Nessuna modifica a gameplay, fisica, abilità, cooldown, hitbox, VFX o loop a 60 Hz.'],
             ['2Dlock V7.0 TEST • KAISER PATH GUIDATO DAL CURSORE + IMMUNITÀ',
              'Kaiser Path ora segue la direzione del cursore durante tutto lo zigzag, aggiornando la traiettoria in tempo reale invece di avanzare automaticamente verso la porta avversaria. Non aggancia né sceglie il portiere come bersaglio; se il percorso cursor-led entra troppo vicino al portiere, effettua una curva tangenziale per evitarlo. La mossa mantiene la durata rapida di 48 frame e la scia ricca di rose blu. Immunità agli steal e agli stun per tutta la durata del Path e per un secondo completo dopo la sua conclusione (108 frame totali iniziali a 60 Hz). Cooldown, tiro Kaiser Impact, Kaiser Magnus, fisica generale, hitbox e loop a 60 Hz invariati.'],
             ['2Dlock V6.9 TEST • KAISER PATH PIÙ VELOCE',
@@ -12982,10 +12985,10 @@ function drawMain() {
             const isRead = changelogReadIds.includes(title);
             const lines = wrapCanvasText(desc, viewport.w - 34, '600 13px "Rajdhani", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif');
             const h = Math.max(66, 42 + lines.length * 15);
-            const x = 50, w = 1170, y = cursorY;
-            if (y + h >= viewport.y - 2 && y <= viewport.y + viewport.h + 2) {
+            const x = 50, w = 1170, y = cursorY;            if (y + h >= viewport.y - 2 && y <= viewport.y + viewport.h + 2) {
                 const col = i % 2 ? '#B98CFF' : '#35F6FF';
-                const hovered = mouseX >= x && mouseX <= x+w && mouseY >= y && mouseY <= y+h;                fillRoundRect(ctx, x, y, w, h, 11, isRead ? 'rgba(12,14,31,.96)' : (hovered ? 'rgba(25,32,56,.99)' : 'rgba(22,27,50,.99)'), hovered ? '#FFFFFF' : col, hovered ? 1.8 : (i === 0 ? 1.7 : 1));
+                const hovered = mouseX >= x && mouseX <= x+w && mouseY >= y && mouseY <= y+h;
+                fillRoundRect(ctx, x, y, w, h, 11, isRead ? 'rgba(12,14,31,.96)' : (hovered ? 'rgba(25,32,56,.99)' : 'rgba(22,27,50,.99)'), hovered ? '#FFFFFF' : col, hovered ? 1.8 : (i === 0 ? 1.7 : 1));
                 ctx.textAlign = 'left'; ctx.fillStyle = isRead ? '#9EACC2' : (i % 2 ? '#D8B8FF' : '#8CFBFF'); ctx.font = '700 18px "Teko", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
                 ctx.fillText(title, x+15, y+22, w-170);
                 ctx.textAlign = 'right'; ctx.fillStyle = isRead ? '#8794AA' : '#FFD45A'; ctx.font = '800 11px "Rajdhani", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif';
@@ -13981,10 +13984,10 @@ function ensureAudioContext() {
   }
   if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
   return true;
-}
-function applyAudioVolumes() {
+}function applyAudioVolumes() {
   if (!audioCtx || !audioMaster || !audioBuses) return;
-  const t = audioCtx.currentTime;  audioMaster.gain.setTargetAtTime(Math.max(0,gameSettings.volume || 0)/100, t, .025);
+  const t = audioCtx.currentTime;
+  audioMaster.gain.setTargetAtTime(Math.max(0,gameSettings.volume || 0)/100, t, .025);
   audioBuses.music.gain.setTargetAtTime(gameSettings.musicEnabled ? (gameSettings.musicVolume || 0)/100 : 0, t, .04);
   audioBuses.sfx.gain.setTargetAtTime(gameSettings.sfxEnabled ? (gameSettings.sfxVolume || 0)/100 : 0, t, .02);
   audioBuses.awakening.gain.setTargetAtTime(gameSettings.musicEnabled ? (gameSettings.awakeningVolume || 0)/100 : 0, t, .04);
@@ -14871,6 +14874,7 @@ function drawAnkleBreakerBanner() {
 }
 
 </script>
+<script src="./desktop-updater-ui.js"></script>
 
 </body>
 </html>
