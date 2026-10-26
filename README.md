@@ -4,7 +4,7 @@
 
 Il progetto è realizzato in **HTML5, Canvas, CSS e JavaScript** e può essere giocato direttamente nel browser oppure tramite l'app desktop Windows basata su Electron.
 
-> **Versione del gioco:** V7.1 TEST · **Desktop/updater:** 3.0.2  
+> **Versione del gioco:** V7.7.19 TEST · **Desktop/updater:** 3.0.3  
 > [⬇️ Scarica l'ultima versione per Windows](https://github.com/pinzagliapablo-svg/2dlock-desktop/releases/latest) · [📦 Tutte le release](https://github.com/pinzagliapablo-svg/2dlock-desktop/releases)
 
 ---
@@ -27,6 +27,9 @@ Usa il Gacha per ottenere Stili e Flow, prova i **Lucky Spin** e punta alle cate
 
 ### 🌹 Abilità, VFX e momenti da ricordare
 Ogni partita è accompagnata da effetti visivi dedicati: rose blu e scie energetiche di Kaiser, reveal distinti per Stili e Flow, banner goal e **ANKLE BREAKER!** quando riesci a superare un difensore. Le celebrazioni, i replay e gli effetti del pallone rendono ogni azione importante.
+
+### 🎃 Battle Pass Halloween e missioni a rotazione
+Il Battle Pass Halloween affianca le ricompense stagionali a cinque missioni settimanali dedicate, con reset ogni lunedì. Le missioni normali Egoist si rinnovano ogni 24 ore: progressi e riscatti restano distinti dalle missioni stagionali e settimanali.
 
 ### 🏟️ Stadi e personalizzazione
 Scegli tra stadi diversi e personalizza l'esperienza con skin del pallone, effetti di esplosione goal e altre ricompense estetiche. La HUD delle abilità resta in una rail laterale compatta, così i comandi sono leggibili senza coprire il campo.
@@ -101,7 +104,7 @@ I salvataggi dell'app desktop sono conservati in `%APPDATA%\\2Dlock`, al di fuor
 ## 📌 Informazioni sul progetto
 
 - **Gioco:** 2Dlock — calcio 2D con stili, Flow e abilità.
-- **Build corrente:** V7.1 TEST.
+- **Build corrente:** V7.7.19 TEST.
 - **App desktop:** Electron per Windows.
 - **Gameplay:** locale contro bot; gli aggiornamenti automatici richiedono Internet.
 - **Release:** [GitHub Releases](https://github.com/pinzagliapablo-svg/2dlock-desktop/releases).
